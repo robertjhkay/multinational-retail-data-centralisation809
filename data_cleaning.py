@@ -83,7 +83,7 @@ class DataCleaning:
             return filtered_df
         
         '''
-        Method cleans the product data. Utilizes function above.
+        Method cleans the product data. Utilizes method above.
         ''' 
 
         def clean_products_data(self):
