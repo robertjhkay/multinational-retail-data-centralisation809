@@ -136,19 +136,3 @@ class DataCleaning:
             date_time_dataframe.dropna(subset=['day', 'year', 'month'], inplace=True) # drops rows which contain null values in the specified columns
             date_time_dataframe['timestamp'] = pd.to_datetime(date_time_dataframe['timestamp'], format='%H:%M:%S', errors='coerce') # timestamp in form hour minute and seconds
             return date_time_dataframe
-
-if __name__ == '__main__':
-
-        def find_cleaned_missing_card_numbers():
-            orders_table = DataCleaning().clean_orders_data()
-            card_details_pdf = DataCleaning().clean_card_data()
-            # Extract the 'card_number' columns from both DataFrames
-            orders_card_numbers = orders_table['card_number']
-            pdf_card_numbers = card_details_pdf['card_number']
-            # Find the missing card numbers
-            missing_card_numbers = orders_card_numbers[~orders_card_numbers.isin(pdf_card_numbers)]
-            return missing_card_numbers
-
-missing_card_numbers = find_cleaned_missing_card_numbers()
-print("Missing Card Numbers:")
-print(missing_card_numbers)
