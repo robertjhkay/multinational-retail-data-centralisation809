@@ -15,3 +15,8 @@ A multinational company that sells various goods across the globe. Their sales d
 - Extract store data through the use of an API.
 - Retrive and clean the orders table.
 - Retrive and clean the date events data.
+
+## Milestone 3: Create the Database Schema
+
+- Develop the star-based schema of the database. This includes primary keys created in the tables prefixed with dim and foreign keys in the orders_table to reference the primary keys in the other tables.
+
