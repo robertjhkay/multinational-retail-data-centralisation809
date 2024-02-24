@@ -1,8 +1,3 @@
---The following gets rid of the '?' symbol
-UPDATE dim_card_details
-SET card_number = REPLACE(card_number, '?', '')
-WHERE card_number LIKE '?%';
-
 ALTER TABLE dim_card_details
 ALTER COLUMN card_number TYPE VARCHAR(20) USING card_number::VARCHAR(20);
 

@@ -20,14 +20,58 @@ class DataCleaning:
         def clean_user_data(self): 
             user_data_frame = DataExtractor().read_rds_table('legacy_users')
             user_data_frame.dropna(subset=['date_of_birth','join_date'], inplace=True)
-            exclusion_list = ['752', '867', '1023', '1047', '1807', '2103', '2439', '6526', '2764', '2997', '3539', '4987', '5309', '5310', '6426', '6927', '7747', '8398', '9026', '10025', '10224', '10237', '10373', '11002', '11381', '11459', '11615', '11778', '11881', '12110', '12197', '12606', '13135', '13879', '14124', '14523']
-            corrupt_data_index = user_data_frame['index'].astype(str).str.strip().isin(exclusion_list)
-            user_data_frame = user_data_frame[~corrupt_data_index] #gets rid of 36 corrupt rows
-            user_data_frame.replace({'date_of_birth':["1968 October 16", "January 1951 27", "November 1958 11", "1946 October 18", "1979 February 01", "June 1943 28", "November 1963 06", "February 2005 05", "July 1966 08", "1948 October 24", "December 1946 09", "2005 January 27", "July 1961 14", "July 1939 16", "1951 January 14", "May 1996 25"]}, {'date_of_birth':['1968-10-16', '1951-01-27', '1958-11-11', '1946-10-18', '1979-02-01', '1943-06-28', '1963-11-06', '2005-02-05', '1966-07-08', '1948-10-24', '1946-12-09', '2005-01-27', '1961-07-14', '1939-07-16', '1951-01-14','1996-05-25']}, inplace=True) # anomalies found in SQL which prevented changing data type to date
-            user_data_frame['date_of_birth'] = user_data_frame['date_of_birth'].str.replace('/', '-') # another date anomaly
-            user_data_frame['join_date'] = user_data_frame['join_date'].str.replace('/', '-')
-            user_data_frame.replace({'join_date':["2006 September 03", "2001 October 14", "1998 June 28", "2022 October 04", "2008 December 05", "1994 February 12", "November 1994 28", "February 2019 03", "July 2002 21", "May 1999 31", "May 1994 27", "March 2011 04", "December 1992 09", "October 2022 26"]}, {'join_date':['2006-09-03', '2001-10-14', '1998-06-28', '2022-10-04', '2008-12-05', '1994-02-12', '1994-11-28', '2019-02-03', '2002-07-21', '1999-05-31', '1994-05-27', '2011-03-04', '1992-12-09', '2022-10-26']}, inplace=True)
+
+            def move_digits_to_front(input_string): # Converts 12-2005-21 to '2005-12 21'
+                match = re.search(r'\d{4}', input_string)
+                if match:
+                    digits = match.group()
+                    if '-' in input_string:
+                        # If input contains hyphens, add space and perform the required operations
+                        result_string = digits + ' ' + input_string.replace(digits, '', 1)
+                        result_string = result_string.replace('  ', ' ')
+                        result_string = result_string.replace(' -', ' ')
+                        result_string = result_string.replace('--', '-')
+                    else:
+                        # If input is in 'YYYY-MM-DD' format, leave it unchanged
+                        result_string = input_string
+                    return result_string
+                else:
+                    return input_string
+
+            
+            user_data_frame.loc[:, 'date_of_birth'] = user_data_frame['date_of_birth'].apply(move_digits_to_front)
+            user_data_frame.loc[:, 'join_date'] = user_data_frame['join_date'].apply(move_digits_to_front)
+
+            def replace_month_names(date_string): # Converts December to 12
+                month_dict = {
+                    'January': '01',
+                    'February': '02',
+                    'March': '03',
+                    'April': '04',
+                    'May': '05',
+                    'June': '06',
+                    'July': '07',
+                    'August': '08',
+                    'September': '09',
+                    'October': '10',
+                    'November': '11',
+                    'December': '12'
+                    }
+                for month_name, month_number in month_dict.items():
+                    date_string = date_string.replace(month_name, month_number)
+                return date_string
+
+            user_data_frame.loc[:, 'date_of_birth'] = user_data_frame['date_of_birth'].apply(replace_month_names)
+            user_data_frame.loc[:, 'join_date'] = user_data_frame['join_date'].apply(replace_month_names)
+            user_data_frame['date_of_birth'] = [date.replace('/', '-') for date in user_data_frame['date_of_birth']]
+            user_data_frame['join_date'] = [date.replace('/', '-') for date in user_data_frame['join_date']]
+            user_data_frame['date_of_birth'] = [date.replace(' ', '-') for date in user_data_frame['date_of_birth']]
+            user_data_frame['join_date'] = [date.replace(' ', '-') for date in user_data_frame['join_date']]
+
             user_data_frame['country_code'] = user_data_frame['country_code'].str.replace('GGB', 'GB') # corrects country code for 6 cases
+            country_code_allowed = ['US', 'GB', 'DE']
+            country_code_index = user_data_frame['country_code'].isin(country_code_allowed)
+            user_data_frame = user_data_frame[country_code_index]
             return user_data_frame
     
         '''
@@ -36,13 +80,63 @@ class DataCleaning:
 
         def clean_card_data(self):
             card_data_frame = DataExtractor().retrieve_pdf_data('https://data-handling-public.s3.eu-west-1.amazonaws.com/card_details.pdf')
+            
             card_data_frame.replace({'card_number': ['NULL']}, {'card_number': [np.nan]}, inplace=True) # pdf has 'NULL' instead of blank spaces
+
+            def question_mark_deletion(card_number):
+                try:
+                    card_number = str(card_number)
+                    card_number = card_number.replace("?", '')
+                except:
+                    card_number = np.nan
+                return card_number
+
+            card_data_frame.loc[:, 'card_number'] = card_data_frame['card_number'].apply(question_mark_deletion)
+            
+            def corrupt_number(card_number):
+                try:
+                    card_number = int(card_number)
+                except ValueError:
+                    card_number = np.nan
+                return card_number
+            
+            card_data_frame.loc[:, 'card_number'] = card_data_frame['card_number'].apply(corrupt_number) # sets card numbers to Null if they are a string
             card_data_frame.replace({'expiry_date': ['NULL']}, {'expiry_date': [np.nan]}, inplace=True)
-            card_data_frame = card_data_frame.dropna(subset=['card_number', 'expiry_date']) # drops rows without a card number
-            corrupt_card_numbers = ["VAB9DSB8ZM", "MOZOT5Q95V", "K0084A9R99", "Y8ITI33X30", "RNSCD8OCIM", "MIK9G2EMM0", "I4PWLWSIRJ", "OMZSBN2XG3", "NB8JJ05D7R", "G0EF4TS8C8", "Z8855EXTJX", "JQTLQAAQTD", "T23BTBBJDD", "LSWT9DT4G4"]
-            corrupt_data_index = card_data_frame['card_number'].isin(corrupt_card_numbers)
-            card_data_frame = card_data_frame[~corrupt_data_index] # gets rid of 14 corrupt rows
-            card_data_frame.replace({'date_payment_confirmed': ["December 2021 17", "2005 July 01", "December 2000 01", "2008 May 11", "October 2000 04", "September 2016 04", "2017/05/15", "May 1998 09"]}, {'date_payment_confirmed':['2021-12-17', '2005-07-01', '2000-12-01', '2008-05-11', '2000-10-04', '2016-09-04', '2017-05-15', '1998-05-09']}, inplace=True)
+            card_data_frame = card_data_frame.dropna(subset=['card_number', 'expiry_date']) # drops rows without a card number or expiry date
+
+            def move_digits_to_front(input_string): # Converts 12-2005-21 to '2005-12 21'
+                match = re.search(r'\d{4}', input_string)
+                digits = match.group()
+                result_string = digits + ' ' + input_string.replace(digits, '', 1)
+                result_string = result_string.replace('  ', ' ')
+                result_string = result_string.replace(' -', '-')
+                result_string = result_string.replace('--', '-')
+                return result_string
+           
+            card_data_frame.loc[:, 'date_payment_confirmed'] = card_data_frame['date_payment_confirmed'].apply(move_digits_to_front)
+            
+            def replace_month_names(date_string): # Converts December to 12
+                month_dict = {
+                    'January': '01',
+                    'February': '02',
+                    'March': '03',
+                    'April': '04',
+                    'May': '05',
+                    'June': '06',
+                    'July': '07',
+                    'August': '08',
+                    'September': '09',
+                    'October': '10',
+                    'November': '11',
+                    'December': '12'
+                    }
+                for month_name, month_number in month_dict.items():
+                    date_string = date_string.replace(month_name, month_number)
+                return date_string
+            
+            card_data_frame.loc[:, 'date_payment_confirmed'] = card_data_frame['date_payment_confirmed'].apply(replace_month_names)
+            card_data_frame['date_payment_confirmed'] = [date.replace('/', '-') for date in card_data_frame['date_payment_confirmed']]
+            card_data_frame['date_payment_confirmed'] = [date.replace(' ', '-') for date in card_data_frame['date_payment_confirmed']]
             return card_data_frame
         
         '''
@@ -56,15 +150,14 @@ class DataCleaning:
             country_code_allowed = ['US', 'GB', 'DE']
             country_code_index = store_data_frame['country_code'].isin(country_code_allowed)
             store_data_frame = store_data_frame[country_code_index]
+            
             def staff_int(staff_numbers):
                 try:
-                    staff_numbers = float(staff_numbers)
-                    if staff_numbers >= 0:
-                        return staff_numbers
-                    else:
-                        return None
+                    staff_numbers = int(staff_numbers)
                 except ValueError:
-                    return None
+                    staff_numbers = np.nan
+                return staff_numbers
+            
             store_data_frame.loc[:, 'staff_numbers'] = store_data_frame['staff_numbers'].apply(staff_int)
             return store_data_frame
 
@@ -76,6 +169,7 @@ class DataCleaning:
             df = DataExtractor().extract_from_s3()
             df.replace({'weight':['77g .']}, {'weight':['77g']}, inplace=True)
             df = df.dropna()
+            
             def weight_converter(weight):
                 try:
                     weight = float(weight)
@@ -101,6 +195,7 @@ class DataCleaning:
                     else:
                         return None
                 return weight
+            
             df.loc[:, 'weight'] = df['weight'].apply(weight_converter) # .loc prevents SettingWithCopyWarning
             filtered_df = df.dropna(subset=['weight'])
             return filtered_df
@@ -111,11 +206,12 @@ class DataCleaning:
 
         def clean_products_data(self):
             products_dataframe = self.convert_product_weights()
-            drop_prod_list=['S1YB74MLMJ','C3NCA2CL35', 'WVPMHZP59U'] # list of strings to drop rows for in the next line
-            corrupt_data_index = products_dataframe['category'].isin(drop_prod_list)
-            products_dataframe = products_dataframe[~corrupt_data_index] # drop the rows where the category column has entries equal to thouse in the list above
-            products_dataframe.drop(products_dataframe[products_dataframe['category'].isin(drop_prod_list)].index, inplace=True) 
+            product_categories=["diy", "health-and-beauty", "pets", "food-and-drink", "sports-and-leisure", "toys-and-games", "homeware"] # list of product categories sold by the store
+            category_data_index = products_dataframe['category'].isin(product_categories)
+            products_dataframe = products_dataframe[category_data_index] # only products in defined categories are selected 
             return products_dataframe
+        
+        
         
         '''
         Method cleans the order data.
