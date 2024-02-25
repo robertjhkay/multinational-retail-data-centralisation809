@@ -25,18 +25,14 @@ class DataCleaning:
                 match = re.search(r'\d{4}', input_string)
                 if match:
                     digits = match.group()
-                    if '-' in input_string:
-                        # If input contains hyphens, add space and perform the required operations
-                        result_string = digits + ' ' + input_string.replace(digits, '', 1)
-                        result_string = result_string.replace('  ', ' ')
-                        result_string = result_string.replace(' -', ' ')
-                        result_string = result_string.replace('--', '-')
-                    else:
-                        # If input is in 'YYYY-MM-DD' format, leave it unchanged
-                        result_string = input_string
-                    return result_string
+                    result_string = digits + ' ' + input_string.replace(digits, '', 1)
+                    result_string = result_string.replace('  ', ' ')
+                    result_string = result_string.replace(' -', ' ')
+                    result_string = result_string.replace('--', '-')
                 else:
-                    return input_string
+                    result_string = input_string
+                return result_string
+                
 
             
             user_data_frame.loc[:, 'date_of_birth'] = user_data_frame['date_of_birth'].apply(move_digits_to_front)
